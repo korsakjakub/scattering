@@ -4,7 +4,7 @@
 - propagate using (23)
 
 2. (12) -> phi_l -> K_l
-- solve for k?
+- solve for K?
 
 3. (5) -> K_l -> S_l
 - S = (1-iK)^(-1) (1+iK)
