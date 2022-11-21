@@ -59,4 +59,4 @@ if __name__ == '__main__':
 
     plt.figure(figsize=(10, 10))
     plt.plot(phi)
-    plt.savefig("python.png")
+    plt.savefig("./python.png")
