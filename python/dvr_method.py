@@ -24,10 +24,30 @@ def potential_energy(min, max, size, ang_momentum, mu, coll_grid) -> np.ndarray:
         return De * (pow(Re / pos, 12) - 2 * pow(Re / pos, 6))
     return np.diag([ang_momentum*(ang_momentum+1)/(2*mu*pow(coll_grid[i-1], 2)) + potential(coll_grid[i-1]) for i in range(1, size)])
 
+def plot_spectrum(grid, vecs):
+    [plt.scatter(grid, v, s=2) for i, v in enumerate(vecs)]
+    plt.savefig("./python/whole_spectrum.png")
+    """
+    plt.scatter(grid, vecs[0], s=2)
+    plt.scatter(grid, vecs[1], s=2)
+    plt.scatter(grid, vecs[2], s=2)
+    plt.scatter(grid, vecs[3], s=2)
+    plt.savefig("./python/first_four.png")
+    """
+
+def plot_means(vals, means):
+    plt.scatter(vals, means)
+    plt.savefig("./python/mean_positions.png")
+
+def plot_anharmonicity(diff):
+    m = [n for n, _ in enumerate(diff)]
+    plt.scatter(m, diff)
+    plt.savefig("./python/anharmonicity.png")
+
 if __name__ == '__main__':
     R0 = 9.5
     RN = 14.5
-    grid_size = 5000
+    grid_size = 1000
     mu = reduced_mass(m39k, m39k)
     angular_momentum = 0.0
 
@@ -43,17 +63,12 @@ if __name__ == '__main__':
         if el[0] < 0.0:
             v_solutions.append(el)
 
-    vals = np.array(v_solutions, dtype=object)[:, 0]
+    vals = -np.array(v_solutions, dtype=object)[:, 0]
     vecs = np.array(v_solutions, dtype=object)[:, 1]
-    #[plt.scatter(grid, v, s=2) for i, v in enumerate(vecs)]
-    #plt.scatter(grid, vecs[0], s=2)
-    #plt.scatter(grid, vecs[1], s=2)
-    #plt.scatter(grid, vecs[2], s=2)
-    #plt.scatter(grid, vecs[3], s=2)
-    #plt.savefig("./first_four.png")
+    # plot_spectrum(grid, vecs)
     means = [np.sum([grid[i] * abs(vec[i])**2 for i, _ in enumerate(vec)]) for _, vec in enumerate(vecs)]
-    print(means)
-
-    plt.scatter(vals, means)
-    plt.savefig("./mean_positions.png")
-    print(np.mean(means))
+    # plot_means(vals, means)
+    omega0 = 0.5 * vals[0]
+    harmonic_energies = [omega0 * (0.5 + v) for v, _ in enumerate(vals)]
+    diffs = harmonic_energies - vals
+    plot_anharmonicity(diffs)
