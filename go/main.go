@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/wcharczuk/go-chart/v2"
 	"math"
 	"os"
 	"strconv"
+
+	"github.com/wcharczuk/go-chart/v2"
+	"go-hep.org/x/hep/fit"
+	"gonum.org/v1/gonum/optimize"
 )
 
 const De = 0.0011141
@@ -37,7 +40,7 @@ func reducedMass(m1, m2 float64) float64 {
 	return m1 * m2 / (m1 + m2)
 }
 
-func simulate(conf Config, collisionEnergy, angularMomentum float64) []float64 {
+func simulate(conf Config, collisionEnergy, angularMomentum float64) ([]float64, []float64) {
 	ratio, err := strconv.ParseFloat(conf.Ratio, 64)
 	initialPosition, err := strconv.ParseFloat(conf.InitialPosition, 64)
 	initialPhi, err := strconv.ParseFloat(conf.InitialPhi, 64)
@@ -63,32 +66,54 @@ func simulate(conf Config, collisionEnergy, angularMomentum float64) []float64 {
 	}
 
 	var phi []float64
+	var x []float64
 	phi = append(phi, initialPhi)
-	for i := 0; i < indexRange; i += 1 {
-		phi = append(phi, phi[i]*ratios[i])
+	x = append(x, initialPosition)
+	for i := 1; i < indexRange; i += 1 {
+		phi = append(phi, phi[i-1]*ratios[i])
+		x = append(x, initialPosition+float64(i)*gridStep)
 	}
 
-	return phi
+	/*
+		Testing computing the K_l
+	*/
+	u := math.Sqrt(2.0 * mu * collisionEnergy)
+
+	longRangeWFApproximation := func(position, scatteringPhase float64) float64 {
+		return math.Sqrt((2 * mu / (math.Pi * u)) * (math.Sin(u*position-angularMomentum*math.Pi/2) + scatteringPhase*math.Cos(u*position-angularMomentum*math.Pi/2)))
+	}
+
+	res, err := fit.Curve1D(
+		fit.Func1D{
+			F: func(x float64, ps []float64) float64 {
+				return longRangeWFApproximation(x, ps[0])
+			},
+			X: x,
+			Y: phi,
+			N: 1,
+		},
+		nil, &optimize.NelderMead{},
+	)
+	if err := res.Status.Err(); err != nil {
+		fmt.Println(err)
+	}
+	scatteringPhase := res.X[0]
+	crossSection := 16 * math.Pi / math.Pow(u, 2) * math.Pow(scatteringPhase, 2) / (1 + math.Pow(scatteringPhase, 2)) * (2*angularMomentum + 1)
+	fmt.Println(crossSection)
+
+	return x, phi
 }
 
 func main() {
 	conf = LoadConfig([]string{})
-	collisionEnergy := 1e-8
+	collisionEnergy := 1e-7
 	angularMomentum := 0.0
-	phi := simulate(conf, collisionEnergy, angularMomentum)
-	indexRangeFloat, err := strconv.ParseFloat(conf.IndexRange, 64)
-	indexRange := int(indexRangeFloat)
-
-	low, high := 1, indexRange
-	x := make([]float64, high-low+1)
-	for i := range x {
-		x[i] = float64(i + low)
-	}
+	x, phi := simulate(conf, collisionEnergy, angularMomentum)
 	graph := chart.Chart{
 		Width:  1000,
 		Height: 1000,
 		XAxis: chart.XAxis{
-			Name: "R",
+			Name: "R/bohr",
 		},
 		YAxis: chart.YAxis{
 			Name: "wf",
@@ -110,7 +135,7 @@ func main() {
 			fmt.Println(err)
 		}
 	}(f)
-	err = graph.Render(chart.PNG, f)
+	err := graph.Render(chart.PNG, f)
 	if err != nil {
 		fmt.Println(err)
 	}
