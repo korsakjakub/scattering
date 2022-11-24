@@ -25,7 +25,7 @@ func LoadConfig(additionalPath []string, args ...string) Config {
 		vp.SetConfigName("config")
 		vp.SetConfigType("json")
 	}
-	vp.AddConfigPath("../")
+	vp.AddConfigPath("./")
 	for _, path := range additionalPath {
 		vp.AddConfigPath(path)
 	}

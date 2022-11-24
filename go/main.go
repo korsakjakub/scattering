@@ -6,9 +6,10 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/wcharczuk/go-chart/v2"
 	"go-hep.org/x/hep/fit"
 	"gonum.org/v1/gonum/optimize"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
 )
 
 const De = 0.0011141
@@ -40,7 +41,7 @@ func reducedMass(m1, m2 float64) float64 {
 	return m1 * m2 / (m1 + m2)
 }
 
-func simulate(conf Config, collisionEnergy, angularMomentum float64) ([]float64, []float64) {
+func simulate(conf Config, collisionEnergy, angularMomentum float64) float64 {
 	ratio, err := strconv.ParseFloat(conf.Ratio, 64)
 	initialPosition, err := strconv.ParseFloat(conf.InitialPosition, 64)
 	initialPhi, err := strconv.ParseFloat(conf.InitialPhi, 64)
@@ -94,49 +95,86 @@ func simulate(conf Config, collisionEnergy, angularMomentum float64) ([]float64,
 		},
 		nil, &optimize.NelderMead{},
 	)
-	if err := res.Status.Err(); err != nil {
-		fmt.Println(err)
-	}
+	//if err := res.Status.Err(); err != nil {
+	//fmt.Println(err)
+	//}
 	scatteringPhase := res.X[0]
 	crossSection := 16 * math.Pi / math.Pow(u, 2) * math.Pow(scatteringPhase, 2) / (1 + math.Pow(scatteringPhase, 2)) * (2*angularMomentum + 1)
-	fmt.Println(crossSection)
+	return crossSection
+}
 
-	return x, phi
+func plotCrossSection(xys plotter.XYs, fileName string) {
+	p := plot.New()
+	s, err := plotter.NewScatter(xys)
+	p.Add(s)
+	wt, err := p.WriterTo(512, 512, "png")
+	f, err := os.Create("go/out/" + fileName)
+	_, err = wt.WriteTo(f)
+	if err = f.Close(); err != nil {
+		fmt.Printf("error: %v", err)
+	}
 }
 
 func main() {
 	conf = LoadConfig([]string{})
-	collisionEnergy := 1e-7
-	angularMomentum := 0.0
-	x, phi := simulate(conf, collisionEnergy, angularMomentum)
-	graph := chart.Chart{
-		Width:  1000,
-		Height: 1000,
-		XAxis: chart.XAxis{
-			Name: "R/bohr",
-		},
-		YAxis: chart.YAxis{
-			Name: "wf",
-		},
-		Series: []chart.Series{
-			chart.ContinuousSeries{
-				Style: chart.Style{
-					StrokeColor: chart.GetDefaultColor(0).WithAlpha(255),
-				},
-				XValues: x,
-				YValues: phi,
-			},
-		},
+	collisionEnergy := 1e-10
+	energies := make([]float64, 500)
+	for i := 0; i < 500; i += 1 {
+		energies[i] = collisionEnergy + float64(6*i)*collisionEnergy
 	}
-	f, _ := os.Create("go.png")
-	defer func(f *os.File) {
-		err := f.Close()
+	angularMomentum := 0.0
+	var xyss []plotter.XYs
+	var x, y float64
+	totalCrossSections := make([]float64, 500)
+	for l := 0; l <= 10; l += 1 {
+		angularMomentum = float64(l)
+		var xys plotter.XYs
+		for i := 0; i < 500; i += 1 {
+			x = energies[i]
+			y = simulate(conf, x, angularMomentum)
+			totalCrossSections[i] += y
+			xys = append(xys, struct{ X, Y float64 }{x, y})
+		}
+		xyss = append(xyss, xys)
+		// plotCrossSection(xyss[len(xyss)-1], fmt.Sprintf("sigma%v.png", angularMomentum))
+	}
+	var totalXYs plotter.XYs
+	for i := 0; i < 500; i += 1 {
+		totalXYs = append(totalXYs, struct{ X, Y float64 }{energies[i], totalCrossSections[i]})
+	}
+	plotCrossSection(totalXYs, "totalSigma.png")
+
+	/*
+		x, phi := simulate(conf, collisionEnergy, angularMomentum)
+		graph := chart.Chart{
+			Width:  1000,
+			Height: 1000,
+			XAxis: chart.XAxis{
+				Name: "R/bohr",
+			},
+			YAxis: chart.YAxis{
+				Name: "wf",
+			},
+			Series: []chart.Series{
+				chart.ContinuousSeries{
+					Style: chart.Style{
+						StrokeColor: chart.GetDefaultColor(0).WithAlpha(255),
+					},
+					XValues: x,
+					YValues: phi,
+				},
+			},
+		}
+		f, _ := os.Create("go.png")
+		defer func(f *os.File) {
+			err := f.Close()
+			if err != nil {
+				fmt.Println(err)
+			}
+		}(f)
+		err := graph.Render(chart.PNG, f)
 		if err != nil {
 			fmt.Println(err)
 		}
-	}(f)
-	err := graph.Render(chart.PNG, f)
-	if err != nil {
-		fmt.Println(err)
-	}
+	*/
 }
