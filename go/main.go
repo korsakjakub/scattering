@@ -112,16 +112,15 @@ func simulate(conf Config, collisionEnergy, angularMomentum float64, plotWF ...b
 		},
 		nil, &optimize.NelderMead{},
 	)
-	//if err := res.Status.Err(); err != nil {
-	//fmt.Println(err)
-	//}
+	if err != nil {
+		fmt.Println(err)
+	}
 	scatteringPhase := res.X[0]
 	a := res.X[1]
 	if math.IsNaN(scatteringPhase) {
 		scatteringPhase = 0.0
 	}
-	_ = a
-	if plotWF[0] == true {
+	if plotWF[0] {
 		var modelXYs plotter.XYs
 		var fitXYs plotter.XYs
 		var diffXYs plotter.XYs
@@ -197,13 +196,13 @@ func plotCrossSection(xys plotter.XYs, fileName, outDir string) {
 func main() {
 	conf = LoadConfig([]string{})
 
-    // Prepare energy parameter array
+	// Prepare energy parameter array
 	initColEnergy := hartreeEnergyInKelvins * 1e-5
-    finColEnergy := hartreeEnergyInKelvins * 10
-    energyCount, err := strconv.Atoi(conf.EnergyCount)
-    if err != nil {
-        fmt.Println(err)
-    }
+	finColEnergy := hartreeEnergyInKelvins * 10
+	energyCount, err := strconv.Atoi(conf.EnergyCount)
+	if err != nil {
+		fmt.Println(err)
+	}
 	energies := make([]float64, energyCount)
 	for i := 0; i < energyCount; i += 1 {
 		// energies[i] = initColEnergy + (finColEnergy - initColEnergy) * float64(i)/float64(energyCount-1)
@@ -211,37 +210,37 @@ func main() {
 		energies[i] = initColEnergy * math.Pow(t, float64(i))
 	}
 
-    angularMomentumCount, err := strconv.Atoi(conf.AngularMomentumCount)
-    if err != nil {
-        fmt.Println(err)
-    }
+	angularMomentumCount, err := strconv.Atoi(conf.AngularMomentumCount)
+	if err != nil {
+		fmt.Println(err)
+	}
 	angularMomenta := make([]float64, angularMomentumCount)
 	for i := 0; i < angularMomentumCount; i += 1 {
 		angularMomenta[i] = float64(i)
 	}
 
-    // Total Cross section
-    totalCrossSections := make([]float64, energyCount)
-    for e := range energies {
-        totalCrossSections[e] = 0.0
-    }
+	// Total Cross section
+	totalCrossSections := make([]float64, energyCount)
+	for e := range energies {
+		totalCrossSections[e] = 0.0
+	}
 
-    // Calculate scatter points where x - energy, y - cross section, for some angularMomentum value
-    for _, angularMomentum := range angularMomenta {
+	// Calculate scatter points where x - energy, y - cross section, for some angularMomentum value
+	for _, angularMomentum := range angularMomenta {
 		xys := make(plotter.XYs, energyCount)
-        for i, energy := range energies {
-            crossSection := simulate(conf, energy, angularMomentum, true)
-            xys[i] = struct{ X, Y float64 }{energy/hartreeEnergyInKelvins, crossSection}
-            totalCrossSections[i] += crossSection
+		for i, energy := range energies {
+			crossSection := simulate(conf, energy, angularMomentum, true)
+			xys[i] = struct{ X, Y float64 }{energy / hartreeEnergyInKelvins, crossSection}
+			totalCrossSections[i] += crossSection
 		}
-        // for each angularMomentum plot scatter cross section
+		// for each angularMomentum plot scatter cross section
 		plotCrossSection(xys, fmt.Sprintf("sigma%v.png", angularMomentum), conf.OutputDir)
 	}
 
-    // plot total cross section
-    totalXYs := make(plotter.XYs, energyCount)
-    for i, energy := range energies {
-        totalXYs[i] = struct{ X, Y float64 }{energy, totalCrossSections[i]/hartreeEnergyInKelvins}
+	// plot total cross section
+	totalXYs := make(plotter.XYs, energyCount)
+	for i, energy := range energies {
+		totalXYs[i] = struct{ X, Y float64 }{energy, totalCrossSections[i] / hartreeEnergyInKelvins}
 	}
 	plotCrossSection(totalXYs, "totalSigma.png", conf.OutputDir)
 }
