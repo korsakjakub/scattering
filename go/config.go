@@ -6,11 +6,14 @@ import (
 )
 
 type Config struct {
-	Ratio           string `mapstructure:"ratio"`
-	InitialPosition string `mapstructure:"initialposition"`
-	InitialPhi      string `mapstructure:"initialphi"`
-	CollisionEnergy string `mapstructure:"collisionenergy"`
-	IndexRange      string `mapstructure:"indexrange"`
+	Ratio 					string `mapstructure:"ratio"`
+	InitialPosition 		string `mapstructure:"initialposition"`
+	InitialPhi 				string `mapstructure:"initialphi"`
+	CollisionEnergy 		string `mapstructure:"collisionenergy"`
+	IndexRange 				string `mapstructure:"indexrange"`
+	EnergyCount             string `mapstructure:"energycount"`
+	AngularMomentumCount    string `mapstructure:"angularmomentumcount"`
+	OutputDir               string `mapstructure:"outputdir"`
 }
 
 var vp *viper.Viper

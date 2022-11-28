@@ -18,8 +18,8 @@ const Re = 10.98
 const u = 1822.888
 const m39k = 38.963703 * u
 const m40k = 39.963999 * u
-
-// const m41k = 40.961825 * u
+const m41k = 40.961825 * u
+const hartreeEnergyInKelvins = 3.1668e-6
 
 var conf Config
 
@@ -42,7 +42,10 @@ func reducedMass(m1, m2 float64) float64 {
 	return m1 * m2 / (m1 + m2)
 }
 
-func simulate(conf Config, collisionEnergy, angularMomentum float64) float64 {
+func simulate(conf Config, collisionEnergy, angularMomentum float64, plotWF ...bool) float64 {
+	if plotWF == nil {
+		plotWF[0] = false
+	}
 	ratio, err := strconv.ParseFloat(conf.Ratio, 64)
 	if err != nil {
 		fmt.Printf("error: %v", err)
@@ -65,7 +68,7 @@ func simulate(conf Config, collisionEnergy, angularMomentum float64) float64 {
 		fmt.Println(err)
 	}
 
-	mu := reducedMass(m39k, m40k)
+	mu := reducedMass(m39k, m39k)
 	gridStep := 2 * math.Pi / (50 * math.Sqrt(kSq(Re, mu, collisionEnergy, angularMomentum)))
 
 	var k []float64
@@ -93,18 +96,19 @@ func simulate(conf Config, collisionEnergy, angularMomentum float64) float64 {
 	*/
 	u := math.Sqrt(2.0 * mu * collisionEnergy)
 
-	longRangeWFApproximation := func(position, scatteringPhase float64) float64 {
-		return math.Sqrt(2*mu/(math.Pi*u)) * (math.Sin(u*position-angularMomentum*math.Pi/2) + scatteringPhase*math.Cos(u*position-angularMomentum*math.Pi/2))
+	longRangeWFApproximation := func(position, scatteringPhase, a float64) float64 {
+		return a * (math.Sin(u*position-angularMomentum*math.Pi/2) + scatteringPhase*math.Cos(u*position-angularMomentum*math.Pi/2))
+		// return math.Sqrt(2*mu/(math.Pi*u)) * (math.Sin(u*position-angularMomentum*math.Pi/2) + scatteringPhase*math.Cos(u*position-angularMomentum*math.Pi/2))
 	}
 
 	res, err := fit.Curve1D(
 		fit.Func1D{
 			F: func(x float64, ps []float64) float64 {
-				return longRangeWFApproximation(x, ps[0])
+				return longRangeWFApproximation(x, ps[0], ps[1])
 			},
-			X: x[1000:],
-			Y: phi[1000:],
-			N: 1,
+			X: x[200:],
+			Y: phi[200:],
+			N: 2,
 		},
 		nil, &optimize.NelderMead{},
 	)
@@ -112,24 +116,28 @@ func simulate(conf Config, collisionEnergy, angularMomentum float64) float64 {
 	//fmt.Println(err)
 	//}
 	scatteringPhase := res.X[0]
+	a := res.X[1]
 	if math.IsNaN(scatteringPhase) {
 		scatteringPhase = 0.0
 	}
-	/*
+	_ = a
+	if plotWF[0] == true {
 		var modelXYs plotter.XYs
 		var fitXYs plotter.XYs
+		var diffXYs plotter.XYs
 		for i := 1; i < indexRange; i += 1 {
-			modelXYs = append(modelXYs, struct{ X, Y float64 }{x[len(x)-1], phi[len(phi)-1]})
-			fitXYs = append(fitXYs, struct{ X, Y float64 }{x[i], longRangeWFApproximation(x[i], scatteringPhase)})
+			modelXYs = append(modelXYs, struct{ X, Y float64 }{x[i], phi[i]})
+			fitXYs = append(fitXYs, struct{ X, Y float64 }{x[i], longRangeWFApproximation(x[i], scatteringPhase, a)})
+			diffXYs = append(diffXYs, struct{ X, Y float64 }{x[i-1], modelXYs[i-1].Y - fitXYs[i-1].Y})
 		}
-		plotWaveFunctions([]plotter.XYs{fitXYs, modelXYs}, "model-vs-fit.png")
-	*/
+		plotWaveFunctions([]plotter.XYs{modelXYs, fitXYs, diffXYs}, fmt.Sprintf("model-vs-fit%v.png", collisionEnergy), "out/en/")
+	}
 
 	crossSection := 16 * math.Pi / math.Pow(u, 2) * math.Pow(scatteringPhase, 2) / (1 + math.Pow(scatteringPhase, 2)) * (2*angularMomentum + 1)
-	return math.Log(crossSection)
+	return crossSection
 }
 
-func plotWaveFunctions(xyss []plotter.XYs, fileName string) {
+func plotWaveFunctions(xyss []plotter.XYs, fileName, outDir string) {
 	p := plot.New()
 	for n, xys := range xyss {
 		s, err := plotter.NewScatter(xys)
@@ -143,7 +151,7 @@ func plotWaveFunctions(xyss []plotter.XYs, fileName string) {
 	if err != nil {
 		fmt.Printf("error: %v", err)
 	}
-	f, err := os.Create("out/" + fileName)
+	f, err := os.Create(outDir + fileName)
 	if err != nil {
 		fmt.Printf("error: %v", err)
 	}
@@ -156,8 +164,14 @@ func plotWaveFunctions(xyss []plotter.XYs, fileName string) {
 	}
 }
 
-func plotCrossSection(xys plotter.XYs, fileName string) {
+func plotCrossSection(xys plotter.XYs, fileName, outDir string) {
 	p := plot.New()
+	p.X.Label.Text = "T/K"
+	p.Y.Label.Text = "cross section"
+	p.X.Scale = plot.LogScale{}
+	p.Y.Scale = plot.LogScale{}
+	p.X.Tick.Marker = plot.LogTicks{}
+	p.Y.Tick.Marker = plot.LogTicks{}
 	s, err := plotter.NewScatter(xys)
 	if err != nil {
 		fmt.Printf("error: %v", err)
@@ -167,7 +181,7 @@ func plotCrossSection(xys plotter.XYs, fileName string) {
 	if err != nil {
 		fmt.Printf("error: %v", err)
 	}
-	f, err := os.Create("out/" + fileName)
+	f, err := os.Create(outDir + fileName)
 	if err != nil {
 		fmt.Printf("error: %v", err)
 	}
@@ -181,31 +195,53 @@ func plotCrossSection(xys plotter.XYs, fileName string) {
 }
 
 func main() {
-	conf = LoadConfig([]string{"../"})
-	collisionEnergy := 1e-10
-	energies := make([]float64, 100)
-	for i := 0; i < 100; i += 1 {
-		energies[i] = collisionEnergy + float64(i)*collisionEnergy
+	conf = LoadConfig([]string{})
+
+    // Prepare energy parameter array
+	initColEnergy := hartreeEnergyInKelvins * 1e-5
+    finColEnergy := hartreeEnergyInKelvins * 10
+    energyCount, err := strconv.Atoi(conf.EnergyCount)
+    if err != nil {
+        fmt.Println(err)
+    }
+	energies := make([]float64, energyCount)
+	for i := 0; i < energyCount; i += 1 {
+		// energies[i] = initColEnergy + (finColEnergy - initColEnergy) * float64(i)/float64(energyCount-1)
+		t := math.Pow(finColEnergy/initColEnergy, 1/float64(energyCount))
+		energies[i] = initColEnergy * math.Pow(t, float64(i))
 	}
-	angularMomentum := 0.0
-	var xyss []plotter.XYs
-	var x, y float64
-	totalCrossSections := make([]float64, 100)
-	for l := 0; l < 10; l += 1 {
-		angularMomentum = float64(l)
-		var xys plotter.XYs
-		for i := 0; i < 100; i += 1 {
-			x = energies[i]
-			y = simulate(conf, x, angularMomentum)
-			totalCrossSections[i] += y
-			xys = append(xys, struct{ X, Y float64 }{x, y})
+
+    angularMomentumCount, err := strconv.Atoi(conf.AngularMomentumCount)
+    if err != nil {
+        fmt.Println(err)
+    }
+	angularMomenta := make([]float64, angularMomentumCount)
+	for i := 0; i < angularMomentumCount; i += 1 {
+		angularMomenta[i] = float64(i)
+	}
+
+    // Total Cross section
+    totalCrossSections := make([]float64, energyCount)
+    for e := range energies {
+        totalCrossSections[e] = 0.0
+    }
+
+    // Calculate scatter points where x - energy, y - cross section, for some angularMomentum value
+    for _, angularMomentum := range angularMomenta {
+		xys := make(plotter.XYs, energyCount)
+        for i, energy := range energies {
+            crossSection := simulate(conf, energy, angularMomentum, true)
+            xys[i] = struct{ X, Y float64 }{energy/hartreeEnergyInKelvins, crossSection}
+            totalCrossSections[i] += crossSection
 		}
-		xyss = append(xyss, xys)
-		plotCrossSection(xyss[len(xyss)-1], fmt.Sprintf("sigma%v.png", l))
+        // for each angularMomentum plot scatter cross section
+		plotCrossSection(xys, fmt.Sprintf("sigma%v.png", angularMomentum), conf.OutputDir)
 	}
-	var totalXYs plotter.XYs
-	for i := 0; i < 100; i += 1 {
-		totalXYs = append(totalXYs, struct{ X, Y float64 }{energies[i], totalCrossSections[i]})
+
+    // plot total cross section
+    totalXYs := make(plotter.XYs, energyCount)
+    for i, energy := range energies {
+        totalXYs[i] = struct{ X, Y float64 }{energy, totalCrossSections[i]/hartreeEnergyInKelvins}
 	}
-	plotCrossSection(totalXYs, "totalSigma.png")
+	plotCrossSection(totalXYs, "totalSigma.png", conf.OutputDir)
 }
