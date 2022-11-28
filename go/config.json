@@ -1,0 +1,9 @@
+{
+	"ratio": "100.0",
+	"initialposition": "9.5",
+	"initialphi": "1.0",
+	"indexrange": "10000",
+    "energycount": 500,
+    "angularmomentumcount": 10,
+    "outputdir": "./out/"
+}
