@@ -51,7 +51,7 @@ def hamiltonian(params):
 
     ham = diagonal + off_diagonal
     energy, vec = np.linalg.eig(ham)
-    return np.sort(energy/hertz_to_hartree)
+    return np.sort(energy/hertz_to_hartree*1e-9)  # hartree -> Hz -> GHz
 
 
 def splitting(element):
